@@ -8,8 +8,8 @@ For recent instruction please visit: https://twiki.cern.ch/twiki/bin/view/CMS/Mi
   git cms-init
   git cms-addpkg RecoMET/METFilters 
   
-  git clone https://github.com/didukhle/MetScanning.git
-  scram b -j9
+  git clone https://github.com/cms-met/MetScanning
+  scram b -j $(nproc)
   ```
   You might need to run the following command if you want to access files via XROOT:
 ```
