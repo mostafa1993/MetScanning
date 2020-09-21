@@ -1,0 +1,164 @@
+# Background Enriched Regions
+BER:
+  pfMet:
+    binning:
+    - [200, 500, 100]
+    - [500, 1000, 250]
+    - [1000, 2000, 500]
+    - [2000, 3000, 1000]
+    overflow_center: 3100
+  puppiMet:
+    binning:
+    - [0, 1000, 200]
+    - [1000, 2000, 500]
+    - [2000, 3000, 1000]
+    overflow_center: 3100
+  leadingJetPt:
+    binning:
+    - [200, 500, 100]
+    - [500, 1000, 250]
+    - [1000, 2000, 500]
+    - [2000, 3000, 1000]
+    overflow_center: 3100
+  nPVx:
+    binning:
+    - [0, 60, 10]
+    - [60, 101, 40]
+    overflow_center: 120
+  binning:
+
+# Noise Free Regions
+NFR:
+  jetht:
+    pfMet:
+      binning:
+      - [0, 95, 5]
+      overflow_center: 100
+    puppiMet:
+      binning:
+      - [0, 300, 20]
+      - [300, 1000, 100]
+      overflow_center: 1100
+    leadingJetPt:
+      binning:
+      - [200, 600, 25]
+      - [600, 800, 100]
+      overflow_center: 900
+    nPVx:
+      binning:
+      - [0, 100, 2]
+      overflow_center: 105
+
+  singlemuon:
+    pfMet:
+      binning:
+      - [0, 95, 5]
+      overflow_center: 100
+    puppiMet:
+      binning:
+      - [0, 300, 20]
+      - [300, 1000, 100]
+      overflow_center: 1100
+    leadingJetPt:
+      binning:
+      - [200, 600, 25]
+      - [600, 800, 100]
+      overflow_center: 900
+    nPVx:
+      binning:
+      - [0, 100, 2]
+      overflow_center: 105
+
+  egamma:
+    pfMet:
+      binning:
+      - [0, 95, 5]
+      overflow_center: 100
+    puppiMet:
+      binning:
+      - [0, 300, 20]
+      - [300, 1000, 100]
+      overflow_center: 1100
+    leadingJetPt:
+      binning:
+      - [200, 600, 25]
+      - [600, 800, 100]
+      overflow_center: 900
+    nPVx:
+      binning:
+      - [0, 100, 2]
+      overflow_center: 105
+
+  singleelectron:
+    pfMet:
+      binning:
+      - [0, 95, 5]
+      overflow_center: 100
+    puppiMet:
+      binning:
+      - [0, 300, 20]
+      - [300, 1000, 100]
+      overflow_center: 1100
+    leadingJetPt:
+      binning:
+      - [200, 600, 25]
+      - [600, 800, 100]
+      overflow_center: 900
+    nPVx:
+      binning:
+      - [0, 100, 2]
+      overflow_center: 105
+
+  doublemuon:
+    pfMet:
+      binning:
+      - [0, 101, 5]
+      overflow_center: 102
+    puppiMet:
+      binning:
+      - [0, 200, 20]
+      - [0, 200, 20]
+      - [200, 600, 50]
+      - [600, 1500, 100]
+      overflow_center: 1550
+    leadingJetPt:
+      binning:
+      - [200, 600, 50]
+      - [600, 1000, 100]
+      - [1000, 2000, 200]
+      - [2000, 3500, 500]
+      overflow_center: 3700
+    nPVx:
+      binning:
+      - [0, 150, 2]
+      overflow_center: 152
+
+# All Regions i.e. in the Old Analysis Mode.
+AR:
+  pfMet:
+    binning:
+    - [0, 200, 20]
+    - [200, 500, 100]
+    - [500, 1000, 250]
+    - [1000, 2000, 500]
+    - [2000, 3000, 1000]
+    overflow_center: 3100
+  puppiMet:
+    binning:
+    - [0, 1000, 200]
+    - [1000, 2000, 500]
+    - [2000, 3000, 1000]
+    overflow_center: 3100
+  leadingJetPt:
+    binning:
+    - [200, 500, 100]
+    - [500, 1000, 250]
+    - [1000, 2000, 500]
+    - [2000, 3000, 1000]
+    overflow_center: 3100
+  nPVx:
+    binning:
+    - [0, 60, 10]
+    - [60, 101, 40]
+    overflow_center: 120
+  binning:

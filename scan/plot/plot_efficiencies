@@ -1,0 +1,351 @@
+#!/usr/bin/env python3
+
+print('Importing packages...')
+import os
+from array import array
+import numpy as np
+import argparse
+import matplotlib.pyplot as plt
+from matplotlib import rcParams, gridspec
+import yaml
+
+import ROOT
+
+ROOT.PyConfig.IgnoreCommandLineOptions = True 
+plt.rcParams['axes.grid'] = True
+
+
+def MakeBins(binning, overflow_center):
+  bin_centers = [(binning[0] + binning[1]) / 2] + \
+      [(binning[i] + binning[i+1]) / 2 for i in range(1, len(binning) - 1)] + \
+      [overflow_center]
+
+  #widths = [bin_centers[0]] if binning[0] == 0 else  + \
+  widths = \
+      [(binning[i+1] - binning[i]) / 2 for i in range(0, len(binning) - 1)] + \
+      [bin_centers[-1] - binning[-1]]
+  
+  return {'bins': binning,
+          'centers': np.array(bin_centers),
+          'xerr': np.array(widths)}
+
+
+def FindProperties(key):
+  info = {}
+  name = key[0:key.find('Title')].split(':')[1].strip()
+  
+  info['object'] = root_file.Get(name)
+  name = name.split('_')
+  info['type'] = name[0]
+  if info['type'] != 'eff':
+    return False
+
+  for i in range(name.count('copy')):
+    name.remove('copy')
+
+  info['name'] = '_'.join(name)
+  info['description'] = '_'.join(name[2:-2])
+
+  info['filter'], info['region'], info['variable'] = name[1:2] + name[-2:]
+
+  return info
+
+
+def MakeHist(config, teff):
+  ranges, overflow_center = config['binning'], config['overflow_center']
+  binning = []
+  for rng in ranges:
+    binning.append(np.arange(rng[0], rng[1], rng[2]))
+
+  binning.append(rng[1:2])
+  binning = np.concatenate(binning)
+
+  bins, bin_centers, xerr = MakeBins(binning, overflow_center).values()
+  num = ROOT.TH1F('new_num' + info['name'], 'new_num' + info['name'],
+                  len(bins)-1, array('d', bins))
+  den = ROOT.TH1F('new_den' + info['name'], 'new_den' + info['name'],
+                  len(bins)-1, array('d', bins))
+
+  old_num = teff.GetPassedHistogram()
+  old_den = teff.GetTotalHistogram()
+  for i in range(1, old_num.GetNbinsX()+1):
+    num.Fill(i, int(old_num.GetBinContent(i)))
+    den.Fill(i, int(old_den.GetBinContent(i)))
+
+  num.Sumw2(False)
+  den.Sumw2(False)
+  
+  new_eff = ROOT.TEfficiency(num, den)
+  size = len(bins) + 1
+  eff = np.zeros(size)
+  error_up, error_low = np.zeros(size), np.zeros(size)
+
+  ## storing the efficiencies in numpy arrays
+  for i in range(size):
+    eff[i] = new_eff.GetEfficiency(i)
+    errUp = new_eff.GetEfficiencyErrorUp(i)
+    errLow = new_eff.GetEfficiencyErrorLow(i)
+    error_up[i] = errUp if errUp !=1 else 0
+    error_low[i] = errLow if errLow !=1 else 0
+
+  return {'eff':eff,
+          'error':[error_low[1:], error_up[1:]],
+          'bins':bins,
+          'bin_centers':bin_centers,
+          'xerr':xerr}
+
+
+#### Main Code #####
+arg_parser = argparse.ArgumentParser(description=__doc__)
+arg_parser.add_argument('data', nargs='+',
+                        help='List of root files obtained from runAnalysis.')
+arg_parser.add_argument('--dataset', nargs='+',
+                        help='List of datasets w.r.t. the given root files.')
+arg_parser.add_argument('--year', help='Datasets year.')
+arg_parser.add_argument('--all', action='count', default=0,
+                        help='Will produce all individual and merged plots.')
+arg_parser.add_argument('--old', action='count', default=0,
+                        help='Use it if your analysis is in old strategy mode.')
+args = arg_parser.parse_args()
+
+data_files, datasets, year = args.data, args.dataset, args.year
+plot_all = args.all > 0
+isOld = args.old > 0
+
+# Plotting variables
+dpi = 200
+imageFormat = 'png'
+
+# Colors of: BadPFMuon_U, BadPFMuon_Dz_U, BadPFMuon, EcalBadCal_U,
+#EcalTP, EEBadSc, GlbTightHalo, GoodVertices, HBHEIsoNoise, HBHENoise
+rec_colors = ('blue', 'red', 'green', 'black', 'brown', 'cyan',
+              'darkorange', 'y', 'magenta', 'gray')
+
+# Colors of: BadChCand, BadPFMuon_U, EcalDCBE, EcalBadCal_U, GlbTightHalo
+non_rec_colors = ('blue', 'red', 'green', 'black', 'darkorange', 'dodgerblue')
+
+markers = ('o', 'x', '>', '^', 'v', 'o', 'x', '>', '^', 'v') 
+ms = 5
+
+# Loading MET Filters Configuration file
+with open('config/met_filters.yaml') as metFiltersCfg_file:
+  metFiltersConfig = yaml.safe_load(metFiltersCfg_file)
+rec_filters, non_rec_filters = [], []
+for filter_ in metFiltersConfig:
+  filter_name = filter_['name']
+  if filter_['isRecommended']:
+    rec_filters.append(filter_name.strip('_U'))
+  elif not filter_name.startswith('BadPFMuon'):
+    non_rec_filters.append(filter_name.strip('_U'))
+
+rec_filters.sort(key=lambda y: y.lower())
+non_rec_filters = list(set(non_rec_filters))
+non_rec_filters.sort(key=lambda y: y.lower())
+variables = 'pfMet', 'leadingJetPt', 'nPVx', 'puppiMet'
+
+full_info = {}
+for data_file, dataset in zip(data_files, datasets):
+  start = '######## Loading information of {} {} dataset.'.format(dataset, year)
+  print(start)
+  root_file = ROOT.TFile(data_file)
+  dataset = dataset.lower()
+  full_info[dataset] = {}
+  filters = full_info[dataset]
+  plot_dir = '{}{}_plots'.format(dataset, year)
+  for key in root_file.GetListOfKeys():
+    info = FindProperties(str(key))
+    if not info:
+      continue
+  
+    fltr, region, var = info['filter'], info['region'], info['variable']
+    desc, obj = info['description'], info['object']
+  
+    with open('config/{}.yaml'.format(fltr)) as yaml_file:
+      config = yaml.safe_load(yaml_file)
+      config = config[region][var] if region != 'NFR' else \
+          config[region][dataset][var]
+  
+    data = MakeHist(config, obj)
+  
+    if not fltr in filters.keys():
+      filters[fltr] = {}
+    if not region in filters[fltr].keys():
+      filters[fltr][region] = {}
+    if not var in filters[fltr][region].keys():
+      filters[fltr][region][var] = {}
+    if not desc in filters[fltr][region][var].keys():
+      filters[fltr][region][var][desc] = {}
+  
+    filters[fltr][region][var][desc]['data'] = data
+
+  if not plot_all:
+    continue
+  # Plot efficiencies individually
+  print('Plotting MET filters efficiencies individually...')
+  for fltr, regions in filters.items():
+    for region, vars_ in regions.items():
+      for var, descs in vars_.items():
+        descs = list(descs.items())
+        descs.sort()
+        for l, (desc, val) in enumerate(descs):
+          efficiencies, errors, bins, bin_centers, xerr = val['data'].values()
+          plot = plt.errorbar(bin_centers, efficiencies[1:], xerr=xerr,
+                              yerr=errors, ms=ms, fmt='', ls='none',
+                              marker=markers[l], color=rec_colors[l],
+                              label='{} {}'.format(fltr, desc))
+  
+        plt.xlim(bins[0], bin_centers[-1] + xerr[-1] / 2 )
+        plt.title('{} filter performance in {}, {} {}'.format(
+          fltr, region, dataset, year))
+        plt.ylabel('Efficiency' if region == 'NFR' else \
+                   'Noise rejection fraction')
+        plt.xlabel(var)
+        if len(descs) > 1:
+          plt.legend()
+        os.system('mkdir -p {}/effs/{}'.format(plot_dir, fltr))
+        plt.savefig('{}/effs/{}/{}_{}_{}.{}'.format(
+          plot_dir, fltr, fltr, region, var, imageFormat), dpi=dpi)
+        plt.close()
+  
+  
+  allRegions = 'BER', 'NFR', 'AR'
+  # Merge Recommended MET Filters plots
+  print('Merging recommended MET filters plots...')
+  for var in variables:
+    for region in allRegions:
+      if isOld and region != 'AR':
+        continue
+      elif not isOld and region == 'AR':
+        continue
+      j = 0
+      plt.figure(figsize=(12, 8))
+      ax = plt.subplot(111)
+      box = ax.get_position()
+      ax.set_position([box.x0, box.y0, box.width * 0.9, box.height])
+  
+      for fltr in rec_filters:
+        descs = list(filters[fltr][region][var].items())
+        descs.sort()
+        for desc, val in descs:
+          efficiencies, errors, bins, bin_centers, xerr = val['data'].values()
+          plt.errorbar(bin_centers, efficiencies[1:], xerr=xerr, yerr=errors,
+                       ms=ms, fmt='', ls='none', marker=markers[j],
+                       color=rec_colors[j], label='{} {}'.format(fltr, desc))
+          j += 1
+  
+      plt.xlim(bins[0], bin_centers[-1] + xerr[-1] / 2)
+      plt.title('recommended filters performance in {}, {} {}'.format(
+        region, dataset, year))
+      plt.ylabel('Efficiency' if region != 'BER' else \
+                 'Noise rejection fraction')
+      plt.xlabel(var)
+      leg = plt.legend(loc='center left', bbox_to_anchor=(1.02, 0.5),
+                       labelspacing=3)
+      leg.get_frame().set_edgecolor('white')
+      os.system('mkdir -p {}/effs/merged'.format(plot_dir))
+      plt.savefig('{}/effs/merged/{}_{}.{}'.format(
+        plot_dir, region, var, imageFormat), dpi=dpi)
+      plt.close()
+  
+  
+  # Merge Non-Recommended MET Filters plots
+  print('Merging non-recommended MET filters plots...')
+  for var in variables:
+    for region in allRegions:
+      if isOld and region != 'AR':
+        continue
+      elif not isOld and region == 'AR':
+        continue
+      j = 0
+      plt.figure(figsize=(12,8))
+      ax = plt.subplot(111)
+      box = ax.get_position()
+      ax.set_position([box.x0, box.y0, box.width * 0.9, box.height])
+      for fltr in non_rec_filters:
+        descs = list(filters[fltr][region][var].items())
+        descs.sort()
+        for desc, val in descs:
+          #for desc, val in filters[fltr][region][var].items():
+          efficiencies, errors, bins, bin_centers, xerr = val['data'].values()
+          plt.errorbar(bin_centers, efficiencies[1:], xerr=xerr, yerr=errors,
+                       ms=ms, fmt='', ls='none', marker=markers[j],
+                       color=non_rec_colors[j], label='{} {}'.format(
+                         fltr, desc))
+          j += 1
+  
+      plt.xlim(bins[0], bin_centers[-1] + xerr[-1] / 2 )
+      plt.title('Non recommended filters performance in {}, {} {}'.format(
+        region, dataset, year))
+      plt.ylabel('Efficiency' if region != 'BER' else \
+                 'Noise rejection fraction')
+      plt.xlabel(var)
+      leg = plt.legend(loc='center left', bbox_to_anchor=(1.02, 0.5),
+                       labelspacing=3)
+      leg.get_frame().set_edgecolor('white')
+      os.system('mkdir -p {}/effs/merged/non_rec'.format(plot_dir))
+      plt.savefig('{}/effs/merged/non_rec/{}_{}.{}'.format(
+        plot_dir, region, var, imageFormat), dpi=dpi)
+      plt.close()
+
+  print('Everything is done with {} {} dataset.'.format(dataset, year))
+
+
+# Merging actual plots based on the proper datasets and filters
+# BadPfMuon filter plots are from Single Muon dataset
+# EcalBadCal filter plots are from Egamma dataset
+# The rest plots are from JetHT dataset
+if len(datasets) != 3 or len(data_files) != 3:
+  print('Warning: I\'m not going to do actual merged plots:')
+  print('For actual merged plots, jetht, singlemuon and egamma datasets',
+        'are all needed.')
+  print('If you need the final actual merged plots Please provide all',
+        'datasets properly, and try again.')
+  print('What is final actual merged plots? This is a plot which each filter',
+        'efficiency is obtained from the most relevant dtaset')
+  exit(1)
+plot_dir = 'actual_merged_plots'
+os.system('mkdir -p {}'.format(plot_dir))
+print('Merging actual recommended MET filters plots...')
+for var in variables:
+  for region in allRegions:
+    if isOld and region != 'AR':
+      continue
+    elif not isOld and region == 'AR':
+      continue
+    j = 0
+    plt.figure(figsize=(14, 8))
+    ax = plt.subplot(111)
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, box.width * 0.85, box.height])
+
+    for fltr in rec_filters:
+      for dataset, filters in full_info.items():
+        if (fltr == 'BadPFMuon' and dataset != 'singlemuon') or \
+           (fltr == 'EcalBadCal' and dataset != 'egamma'):
+          continue
+        if (fltr != 'BadPFMuon' and fltr != 'EcalBadCal' and
+            dataset != 'jetht'):
+          continue
+        descs = list(filters[fltr][region][var].items())
+        descs.sort()
+        for desc, val in descs:
+          efficiencies, errors, bins, bin_centers, xerr = val['data'].values()
+          plt.errorbar(bin_centers, efficiencies[1:], xerr=xerr, yerr=errors,
+                       ms=ms, fmt='', ls='none', marker=markers[j],
+                       color=rec_colors[j], label='{} {} ({})'.format(
+                         fltr, desc, dataset))
+          j += 1
+
+    plt.xlim(bins[0], bin_centers[-1] + xerr[-1] / 2)
+    if region == 'NFR':
+      plt.ylim(0.80, 1.005)
+    plt.title('recommended filters performance in {}, {}'.format(region, year))
+    plt.ylabel('Efficiency' if region != 'BER' else 'Noise rejection fraction')
+    plt.xlabel(var)
+    leg = plt.legend(loc='center left', bbox_to_anchor=(1.02, 0.5),
+                     labelspacing=3)
+    leg.get_frame().set_edgecolor('white')
+    plt.savefig('{}/{}_{}.{}'.format(
+      plot_dir, region, var, imageFormat), dpi=dpi)
+    plt.close()
+print('Done...')

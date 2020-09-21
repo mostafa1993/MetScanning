@@ -1,0 +1,85 @@
+# Some Explanation about N-1Key defined below:
+# For example for second filter that is "GlbSTightHalo" the N-1key is 253
+# which in binary format is 11111101, this means all recommended filters are
+# passed except for second filter i.e. itself, which is 0.
+# So in order to fill the histograms for such filter,
+# if you require the "event filters status" to be (11111101 OR 11111111),
+# then indeed, we have simultaneously applied N-1 efficiency for recommeded
+# MET filters and requiring non-recommended met filters to pass all
+# recommended filters.
+
+- name: GoodVertices
+  flag: Flag_goodVertices
+  isRecommended: true
+  N-1key: 254
+
+- name: GlbSTightHalo
+  flag: Flag_globalSuperTightHalo2016Filter
+  isRecommended: true
+  N-1key: 253
+  
+- name: HBHENoise
+  flag: Flag_HBHENoiseFilter
+  isRecommended: true
+  N-1key: 251
+  
+- name: HBHEIsoNoise
+  flag: Flag_HBHENoiseIsoFilter
+  isRecommended: true
+  N-1key: 247
+  
+- name: EcalTP
+  flag: Flag_EcalDeadCellTriggerPrimitiveFilter
+  isRecommended: true
+  N-1key: 239
+  
+- name: EEBadSc
+  flag: Flag_eeBadScFilter
+  isRecommended: true
+  N-1key: 223
+  
+- name: EcalBadCal_U
+  flag: PassecalBadCalibFilter_Update
+  isRecommended: true
+  N-1key: 191
+  
+- name: BadPFMuon
+  flag: Flag_BadPFMuonFilter
+  isRecommended: true
+  N-1key: 127
+  
+- name: BadPFMuon_U
+  flag: PassBadPFMuonFilter_Update
+  isRecommended: false
+  N-1key: 127
+  
+- name: BadPFMuon_Dz_U
+  flag: PassBadPFMuonFilterDz_Update
+  isRecommended: false
+  N-1key: 127
+  
+- name: EcalDCBE
+  flag: Flag_EcalDeadCellBoundaryEnergyFilter
+  isRecommended: false
+  N-1key: -1
+  
+- name: EcalDCBE_U
+  flag: PassEcalDeadCellBoundaryEnergyFilter_Update
+  isRecommended: false
+  N-1key: -1
+  
+- name: GlbTightHalo
+  flag: Flag_globalTightHalo2016Filter
+  isRecommended: false
+  N-1key: 253
+  
+- name: BadChCand
+  flag: Flag_BadChargedCandidateFilter
+  isRecommended: false
+  N-1key: -1
+  
+- name: BadChCand_U
+  flag: PassBadChargedCandidateFilter_Update 
+  isRecommended: false
+  N-1key: -1
+

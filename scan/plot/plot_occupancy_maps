@@ -1,0 +1,128 @@
+#!/usr/bin/env python3
+
+print('Importing packages...')
+import os
+import argparse
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap, LinearSegmentedColormap
+from matplotlib import cm, rc, rcParams, gridspec
+                                              
+import ROOT
+ROOT.PyConfig.IgnoreCommandLineOptions = True
+rc('text', usetex=True)
+plt.rcParams['axes.grid'] = True
+
+
+def findProperties(key):
+  info = {}
+  name = key[0:key.find('Title')].split(':')[1].strip()
+
+  info['name'] = name
+  info['object'] = root_file.Get(name)
+  name = name.split('_')
+  info['type'] = name[0]
+  if info['type'] != 'occMap':
+    return False
+
+  for i in range(name.count('copy')):
+    name.remove('copy')
+  info['is_updated'] = False
+  if 'U' in name:
+    info['is_updated'] = True
+    name.remove('U')
+
+  more = ''
+  info['filter_status'], info['filter'], info['region'] = name[1:3] + name[-1:]
+  if len(name) > 4:
+    more = '(' + '_'.join(name[3:-1]) + ')'
+
+  filter_detail = info['filter'] + ' {}{} '.format(
+    'updated' if info['is_updated'] else '', more)
+  info['title'] = 'Jet ($p_t > 200~GeV$) occupancy map for events\n'
+  info['title'] += '{} {} in {}, {} {}'
+  info['title'] = info['title'].format(
+      info['filter_status'], filter_detail, info['region'], dataset, year)
+
+  return info
+
+
+def MakeHist(info):
+  obj = info['object']
+  obj_type = info['type']
+  region = info['region']
+  err = False
+  obj.Rebin2D(eta_rebin, phi_rebin)
+  xnbins, ynbins = obj.GetNbinsX(), obj.GetNbinsY()
+  xaxis, yaxis = obj.GetXaxis(), obj.GetYaxis()
+  xmin, xmax = xaxis.GetXmin(), xaxis.GetXmax()
+  ymin, ymax = yaxis.GetBinCenter(1), yaxis.GetBinCenter(ynbins)
+  xaxis = np.array([i for i in np.linspace(xmin, xmax, xnbins)])
+  yaxis = np.array([i for i in np.linspace(ymin, ymax, ynbins)])
+  data = np.zeros(shape=(xnbins, ynbins))
+  for x in range(xnbins):
+    for y in range(ynbins):
+      data[x,y] = obj.GetBinContent(x+1,y+1)
+  
+  return data, xaxis, yaxis
+
+
+def PlotOccupancyMap(data, info):
+  z, x, y = np.flip(data[0],1).swapaxes(0,1), data[1], data[2]
+  P, xedges, yedges = np.histogram2d(z[0], z[1], bins=(x,y), density=True)
+  fig, ax = plt.subplots()
+  cax = ax.imshow(z, extent=(xedges[0], xedges[-1], yedges[0], yedges[-1]),
+                  vmin=0, vmax=np.amax(z), interpolation='none', cmap=my_cmp)
+  cbar = fig.colorbar(cax, aspect=10)
+
+  ax.set_aspect('auto')
+  ax.set_title(info['title'])
+  ax.set_xlabel(r'$\eta$')
+  ax.set_ylabel(r'$\phi$')
+  ax.xaxis.set_ticks(np.linspace(-5, 5, 11))
+  plt.savefig('{}/occMap/{}.{}'.format(
+    plot_dir, info['name'], imageFormat), dpi=dpi)
+  plt.close()
+
+
+
+# Main Code
+arg_parser = argparse.ArgumentParser(description=__doc__)
+arg_parser.add_argument('data', nargs='+',
+                        help='List of root files obtained from runAnalysis.')
+arg_parser.add_argument('--dataset', nargs='+',
+                        help='List of datasets w.r.t. the given root files.')
+arg_parser.add_argument('--year', help='Datasets year.')
+args = arg_parser.parse_args()
+data_files, datasets, year = args.data, args.dataset, args.year
+
+# Create a new color map
+# More color maps are available here if needed:
+# https://matplotlib.org/3.2.1/tutorials/colors/colormaps.html
+cmap = cm.get_cmap('jet')
+newcolors = cmap(np.linspace(0, 1, 256))
+white, black = np.array([1, 1, 1, 1]), np.array([0, 0, 0, 1])
+newcolors[0, :] = white
+my_cmp = ListedColormap(newcolors)
+
+# Set rebin value of the x and y-axis which are eta and phi respectively.
+eta_rebin, phi_rebin = 9, 5
+# Set the quality (dpi) of plots
+dpi = 200
+imageFormat = 'png'
+ms = 3
+
+for data_file, dataset in zip(data_files, datasets):
+  dataset = dataset.lower()
+  plot_dir = '{}{}_plots'.format(dataset, year)
+  os.system('mkdir -p {}/occMap'.format(plot_dir))
+  root_file = ROOT.TFile(data_file)
+  keys_list = root_file.GetListOfKeys()
+  print('Plotting occupancy maps for {} {} dataset...'.format(dataset, year))
+  for key in root_file.GetListOfKeys():
+    info = findProperties(str(key))
+    if not info:
+      continue
+    data = MakeHist(info)
+    PlotOccupancyMap(data, info)
+print('Done.')

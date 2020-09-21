@@ -1,0 +1,10 @@
+<flags CXXFLAGS="-std=c++17 -Wall -Wextra -O3" />
+
+<bin name="runAnalysis" file="*.cc">
+  <use name="boost_filesystem" />
+  <use name="boost_program_options" />
+  <use name="root" />
+  <use name="rootgraphics" />
+  <use name="yaml-cpp" />
+</bin>
+
